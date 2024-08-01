@@ -1,12 +1,33 @@
-from pydantic import BaseModel, SecretStr
+from typing import Optional
+
+from pydantic import BaseModel, SecretStr, validator
 from ..api import DBConfig, DBCaseConfig, MetricType, IndexType
 
 
 class MilvusConfig(DBConfig):
     uri: SecretStr = "http://localhost:19530"
+    user: Optional[str]
+    password: Optional[SecretStr]
 
     def to_dict(self) -> dict:
-        return {"uri": self.uri.get_secret_value()}
+        v = {"uri": self.uri.get_secret_value()}
+        if self.user is not None:
+            v["user"] = self.user
+        if self.password is not None:
+            v["password"] = self.password.get_secret_value()
+        return v
+
+    @validator("*")
+    def not_empty_field(cls, v, field):
+        if (
+                field.name in cls.common_short_configs()
+                or field.name in cls.common_long_configs()
+                or field.name in ('user', 'password')
+        ):
+            return v
+        if not v and isinstance(v, (str, SecretStr)):
+            raise ValueError("Empty string!")
+        return v
 
 
 class MilvusIndexConfig(BaseModel):
